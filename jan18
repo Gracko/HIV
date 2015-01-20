@@ -1,0 +1,129 @@
+#Okay- this will download the data and start the analyis for interesting places on the codons-
+# If your work environment is a real mess, you can start from scratch by uncommenting the below-
+# RUNNING THE BELOW WILL PERMANENTLY ELIMINATE EVERYTHING IN YOUR ENVIRONMENT !!!
+# rm(list = ls())
+
+# it's long, but I didn't want to truncate it- 
+cdata = read.csv("https://raw.githubusercontent.com/Gracko/HIV/114fa105fcde9e0328d0338956ac7bea88e64dc4/UChicago-train.csv")
+
+# I always like to get an idea of what I'm looking at, so
+names(cdata) # 2 patient id's both can be stripped off, keep Resp, skip pr.seq,rt.seq and use the rest
+head(cdata) # really a waste because colds 3&4 are so large plus so many cols
+dim(cdata) # so 849 observations of 106 variables- of which 4 variables  don't count
+cdons = cdata[,-c(1,2,4,5)]
+dim(cdons) # it worked, we have 297/3 = 99 Codons 
+
+#  I'm going to rename the codon columns for easier indexing-
+newNames = c('Resp','VL.t0','CD4.t0')
+
+for(i in 1:99){
+  codNum = paste('CODON_',as.character(i),sep="")
+  newNames = c(newNames,codNum)
+}
+names(cdons)= newNames
+# you can if you want clean up your workspace- uncomment the next line-
+
+
+# For each codon, we want to find all the distinct codon sequences and see if there is a significant
+# difference between the percentages that occur for the two responses
+
+# Recall that table() will give us the information, but the output of table needs to be turned 
+# turned into a matrix.  Then we can use fisher.test (binomial test Yuri mentioned) to see if there
+# is something significant going on.  
+
+
+# fisher.test will need how many total cases there are-
+win = nrow(subset(cdons, cdons$Resp == 1) ) # how many Resp = 1  is  175
+lose = nrow(subset(cdons,cdons$Resp ==0)) # = 674
+rm(win); rm(lose)
+
+#This function will take the data of a codon and return the p value that the two percentages
+# were drawn from a trial with the same probability of occurence
+# the way the function is constructed one doesn't have to input the total number of cases
+# This will be handy for other analysis- one can change the defaults too.
+# Bottom line- if the p value returned is small, this is a candidate codon that may distinguish 
+# the responses 
+
+
+fisherRow = function(inp,try1 = 175,try2=674){  
+  # function inputs the number of 'wins' for two variables and outputs the probability
+  # that they are drawn from binomial distributions with the same probability
+  # the number of trys are defaulted to a current need- this can be changed
+  # inp is a 2x1 matrix of the wins, so the fn outputs the prob that inp[1] out of try1 is drawn
+  # from the same distribution as inp[2] out of try2. The function outputs the pvalue of this
+  # as well as the total number of cases
+  dta = matrix(c(inp[1],inp[2],try2-inp[1],try1-inp[2]),ncol=2)
+  use = fisher.test(dta)
+  pval = matrix(use$p.value)
+  inst = matrix(inp[1]+inp[2])
+  probs = cbind(pval,inst) # p value and the total number of cases
+  return(probs)
+}
+
+ 
+# I think a loop is the best way to the data in the form we want-
+# The outer loop loops through all the codons
+# the inner loop determines the p value for all the expressions of the codon as well as the 
+# total number of expressions
+# We return a N by 3 matrix where the columns are the p value, the # of expressions and the codon 
+# on which this data occurs-
+
+codonPval = matrix(0,1,3)
+
+
+for(i in 1:99){
+  
+  cdat = cdons[,c(1,i+3)] # get the i-th codon data + the responses
+  td = table(cdat); # get the responses by the distinct codon expressions
+  td = matrix(td,nrow=2) # turn it into a matrix
+  expr = ncol(td) # how many expressions are there
+  # now we need to to perform the binomial test on each column to the td and find the p values
+  
+  for(j in 1:expr){
+    inp = td[,j]
+    inp  = matrix(inp, nrow = 2)
+    fr = fisherRow(inp)
+       codonPval = rbind(codonPval,cbind(f,matrix(i)))
+    
+  }
+    
+  
+  
+}
+  
+colnames(codonPval) = c('pvalue','Num_inst', 'codon_num')
+ 
+#remember I initialized codonPval (for probability summary) with a row of zeros-
+# and I want to remove that
+
+codonPval = codonPval[-1,]
+
+# now we wish to find anamlous entries- we need to do a little work
+
+
+
+  use40 = subset(codonPval, codonPval[,2]>40);
+nrow(use40)
+
+
+use50 = subset(codonPval, codonPval[,2]>50);
+nrow(use50)
+
+
+use80 = subset(codonPval, codonPval[,2]>80);
+nrow(use80)
+
+
+
+  
+  
+# To clean up the environment run the following-
+# rm(list = c('inp','pvals','td','cdat')); rm(i); rm(j); rm(expr);rm(codNum);rm(newNames)
+
+
+
+
+
+
+
+
